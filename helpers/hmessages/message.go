@@ -6,15 +6,19 @@ import (
 )
 
 func GetSuccessMessage(sMessage string) string {
-   return GetMessage(sMessage, hcolors.Green, "SUCCESS")
+   return GetMessage(sMessage, hcolors.Green, "✔ SUCCESS")
 }
 
 func GetErrorMessage(sMessage string) string {
-   return GetMessage(sMessage, hcolors.Red, "ERROR")
+   return GetMessage(sMessage, hcolors.Red, "✖ ERROR  ")
 }
 
 func GetInfoMessage(sMessage string) string {
-   return GetMessage(sMessage, hcolors.Yellow, "INFO")
+   return GetMessage(sMessage, hcolors.Yellow, "ℹ INFO   ")
+}
+
+func GetLoadingMessage(sMessage string) string {
+   return GetMessage(sMessage, hcolors.Cyan, "⏳ BUSY   ")
 }
 
 func GetMessage(sMessage string, sExtraParams ...string) string {
