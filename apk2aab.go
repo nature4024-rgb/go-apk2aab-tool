@@ -57,42 +57,42 @@ func main() {
             fmt.Println(" " + getLine() + "\r\n")
 
             // Prepare the environment
-            fmt.Print(" " + hmessages.GetInfoMessage("Clean the environment..."))
+            fmt.Print(" " + hmessages.GetLoadingMessage("Clean the environment..."))
             if cleanEnvironment() {
                fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                // 1. Decompress input APK package
-               fmt.Print(" " + hmessages.GetInfoMessage("Decompress input APK package using apktool..."))
+               fmt.Print(" " + hmessages.GetLoadingMessage("Decompress input APK package using apktool..."))
                if decompressInputAPKPackage(os.Args[1]) {
                   fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                   // 2. Compile input resources
-                  fmt.Print(" " + hmessages.GetInfoMessage("Compiling input resources using aapt2..."))
+                  fmt.Print(" " + hmessages.GetLoadingMessage("Compiling input resources using aapt2..."))
                   if compileInputResources() {
                      fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                      // 3. Generate output APK base
-                     fmt.Print(" " + hmessages.GetInfoMessage("Generating output APK base using aapt2..."))
+                     fmt.Print(" " + hmessages.GetLoadingMessage("Generating output APK base using aapt2..."))
                      if generateOutputAPKBase(os.Args[3], os.Args[4]) {
                         fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                         // 4. Unzip output APK base
-                        fmt.Print(" " + hmessages.GetInfoMessage("Unzipping output APK base..."))
+                        fmt.Print(" " + hmessages.GetLoadingMessage("Unzipping output APK base..."))
                         if unzipOutputAPKBase() {
                            fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                            // 5. Create output structure
-                           fmt.Print(" " + hmessages.GetInfoMessage("Creating output structure..."))
+                           fmt.Print(" " + hmessages.GetLoadingMessage("Creating output structure..."))
                            if createOutputStructure() {
                               fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                               // 6. Compress output structure
-                              fmt.Print(" " + hmessages.GetInfoMessage("Zipping output structure..."))
+                              fmt.Print(" " + hmessages.GetLoadingMessage("Zipping output structure..."))
                               if zipOutoutStructure() {
                                  fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                                  // 7. Generate output AAB
-                                 fmt.Print(" " + hmessages.GetInfoMessage("Generating output AAB..."))
+                                 fmt.Print(" " + hmessages.GetLoadingMessage("Generating output AAB..."))
                                  if generateOutputAAB(os.Args[1]) {
                                     fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
@@ -108,6 +108,8 @@ func main() {
 
             if bError {
                fmt.Println(" " + hmessages.GetErrorMessage(hstrings.STRING_EMPTY))
+            } else {
+               fmt.Println(" " + hmessages.GetSuccessMessage("AAB conversion completed successfully!"))
             }
 
             fmt.Println(" " + getLine())
