@@ -181,7 +181,7 @@ func setAppConfig(sBuildToolsVersion string, sMinSdkVersion string, sTargetSdkVe
 	// 4. Check if AAPT2 is available
 	oAppConfig.aapt2BinFilePath = findAapt2Binary(sBuildToolsVersion)
 	if hstrings.IsEmpty(oAppConfig.aapt2BinFilePath) {
-		oAppConfig.errorMessage = "Aapt2 isn't available, please check that build-tools " + sBuildToolsVersion + " is installed in ANDROID_HOME or aapt2 is in PATH"
+		oAppConfig.errorMessage = "Aapt2 isn't available, please check that build-tools " + sBuildToolsVersion + " is installed in ANDROID_HOME or aapt2 is in tools or PATH"
 		return
 	}
 
@@ -214,6 +214,12 @@ func findJavaBinary() string {
 }
 
 func findAapt2Binary(sBuildToolsVersion string) string {
+	// 1. Try local tools folder first
+	localAapt2 := filepath.Join("tools", "aapt2"+sExecutableExtension)
+	if hfiles.FileExists(localAapt2) {
+		return localAapt2
+	}
+
 	sOSEnvVarAndroid := os.Getenv(OS_ENVIRONMENT_VAR_ANDROID_HOME)
 	if hstrings.IsEmpty(sOSEnvVarAndroid) {
 		sOSEnvVarAndroid = os.Getenv(OS_ENVIRONMENT_VAR_ANDROID_SDK_ROOT)
