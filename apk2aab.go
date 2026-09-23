@@ -1,33 +1,32 @@
 package main
 
 import (
-   "apk2aab/helpers/hcolors"
-   "apk2aab/helpers/hcompressions"
-   "apk2aab/helpers/hfiles"
-   "apk2aab/helpers/hmessages"
-   "apk2aab/helpers/hstrings"
-   "fmt"
-   "io/ioutil"
-   "os"
-   "os/exec"
-   "path/filepath"
-   "regexp"
-   "runtime"
-   "strings"
+	"apk2aab/helpers/hcolors"
+	"apk2aab/helpers/hcompressions"
+	"apk2aab/helpers/hfiles"
+	"apk2aab/helpers/hmessages"
+	"apk2aab/helpers/hstrings"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
 )
 
 type appConfig struct {
-   javaBinFilePath       string
-   aapt2BinFilePath      string
-   apktoolJarFilePath    string
-   bundletoolJarFilePath string
-   androidJarFilePath    string
-   tempFolderPath        string
-   errorMessage          string
+	javaBinFilePath       string
+	aapt2BinFilePath      string
+	apktoolJarFilePath    string
+	bundletoolJarFilePath string
+	androidJarFilePath    string
+	tempFolderPath        string
+	errorMessage          string
 }
 
 const APP_AUTHOR_NAME = "Ivan Ricart Borges"
-const APP_VERSION = "1.0"
+const APP_VERSION = "1.1"
 
 const APP_FOLDER_TEMP = "temp"
 const APP_FOLDER_TEMP_INPUT = "input"
@@ -44,307 +43,435 @@ const REGEX_NUMERIC = "^[0-9]+$"
 
 var oAppConfig *appConfig = new(appConfig)
 var sSeparatorCharacter string
+var sExecutableExtension string
 
 func main() {
-   if len(os.Args) == 5 {
-      if hfiles.FileExists(os.Args[1]) && strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK && regexp.MustCompile(REGEX_NUMERIC).MatchString(os.Args[3]) && regexp.MustCompile(REGEX_NUMERIC).MatchString(os.Args[4]) {
-         setAppConfig(os.Args[2], os.Args[3], os.Args[4])
+	if len(os.Args) == 5 {
+		if hfiles.FileExists(os.Args[1]) && strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK && regexp.MustCompile(REGEX_NUMERIC).MatchString(os.Args[3]) && regexp.MustCompile(REGEX_NUMERIC).MatchString(os.Args[4]) {
+			setAppConfig(os.Args[2], os.Args[3], os.Args[4])
 
-         if hstrings.IsEmpty(oAppConfig.errorMessage) {
-            var bError bool = true
+			if hstrings.IsEmpty(oAppConfig.errorMessage) {
+				fmt.Println(getAppBanner())
+				fmt.Println(" " + getLine() + "\r\n")
 
-            fmt.Println(getAppBanner())
-            fmt.Println(" " + getLine() + "\r\n")
+				steps := []struct {
+					name   string
+					action func() error
+				}{
+					{"Clean the environment...", cleanEnvironment},
+					{"Decompress input APK package using apktool...", func() error { return decompressInputAPKPackage(os.Args[1]) }},
+					{"Compiling input resources using aapt2...", compileInputResources},
+					{"Generating output APK base using aapt2...", func() error { return generateOutputAPKBase(os.Args[3], os.Args[4]) }},
+					{"Unzipping output APK base...", unzipOutputAPKBase},
+					{"Creating output structure...", createOutputStructure},
+					{"Zipping output structure...", zipOutoutStructure},
+					{"Generating output AAB...", func() error { return generateOutputAAB(os.Args[1]) }},
+					{"Validating generated AAB using bundletool...", func() error { return validateOutputAAB(os.Args[1]) }},
+				}
 
-            // Prepare the environment
-            fmt.Print(" " + hmessages.GetInfoMessage("Clean the environment..."))
-            if cleanEnvironment() {
-               fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+				bError := false
+				for _, step := range steps {
+					if !runStep(step.name, step.action) {
+						bError = true
+						break
+					}
+				}
 
-               // 1. Decompress input APK package
-               fmt.Print(" " + hmessages.GetInfoMessage("Decompress input APK package using apktool..."))
-               if decompressInputAPKPackage(os.Args[1]) {
-                  fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+				if bError {
+					fmt.Println(" " + hmessages.GetErrorMessage("Conversion failed."))
+				} else {
+					fmt.Println(" " + hmessages.GetSuccessMessage("AAB generated and validated successfully!"))
+				}
 
-                  // 2. Compile input resources
-                  fmt.Print(" " + hmessages.GetInfoMessage("Compiling input resources using aapt2..."))
-                  if compileInputResources() {
-                     fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+				fmt.Println(" " + getLine())
 
-                     // 3. Generate output APK base
-                     fmt.Print(" " + hmessages.GetInfoMessage("Generating output APK base using aapt2..."))
-                     if generateOutputAPKBase(os.Args[3], os.Args[4]) {
-                        fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+				cleanEnvironment()
+			} else {
+				fmt.Println(getAppBanner())
+				fmt.Println(" " + getLine() + "\r\n")
+				fmt.Println(" " + hmessages.GetErrorMessage(oAppConfig.errorMessage))
+				fmt.Println(" " + getLine())
+			}
+		} else {
+			fmt.Println(getAppBanner())
+			fmt.Println(" " + getLine() + "\r\n")
 
-                        // 4. Unzip output APK base
-                        fmt.Print(" " + hmessages.GetInfoMessage("Unzipping output APK base..."))
-                        if unzipOutputAPKBase() {
-                           fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+			if hfiles.FileExists(os.Args[1]) && strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
+				fmt.Println(" " + hmessages.GetErrorMessage("Parameters min-sdk-version and target-sdk-version must be numeric"))
+			} else {
+				if strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
+					fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" not exists"))
+				} else {
+					fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" isn't APK file"))
+				}
+			}
 
-                           // 5. Create output structure
-                           fmt.Print(" " + hmessages.GetInfoMessage("Creating output structure..."))
-                           if createOutputStructure() {
-                              fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+			fmt.Println(" " + getLine())
+		}
+	} else {
+		fmt.Println(getAppBanner())
+		fmt.Println(" " + getLine() + "\r\n")
+		fmt.Println(" " + hmessages.GetMessage("Application to transform a file with APK format to AAB", hcolors.Yellow, "INFO   "))
+		fmt.Println(" " + hmessages.GetMessage("apk2aab file-apk build-tools-version min-sdk-version target-sdk-version", hcolors.Green, "INPUT  "))
+		fmt.Println(" " + hmessages.GetMessage("apk2aab file.apk 34.0.0 21 34", hcolors.Green, "EXAMPLE"))
+		fmt.Println(" " + hmessages.GetMessage("file.aab", hcolors.Green, "OUTPUT "))
+		fmt.Println(" " + getLine() + "\r\n")
+		fmt.Println(" Author: " + APP_AUTHOR_NAME + " | Version: " + APP_VERSION)
+	}
+}
 
-                              // 6. Compress output structure
-                              fmt.Print(" " + hmessages.GetInfoMessage("Zipping output structure..."))
-                              if zipOutoutStructure() {
-                                 fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+func runStep(stepName string, action func() error) bool {
+	fmt.Print(" " + hmessages.GetInfoMessage(stepName))
+	err := action()
+	if err != nil {
+		fmt.Println(" " + hmessages.GetErrorMessage("FAILED"))
+		cleanErrStr := strings.ReplaceAll(err.Error(), "\r", "")
+		fmt.Printf("\nError details:\n%s\n\n", cleanErrStr)
+		return false
+	}
+	fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+	return true
+}
 
-                                 // 7. Generate output AAB
-                                 fmt.Print(" " + hmessages.GetInfoMessage("Generating output AAB..."))
-                                 if generateOutputAAB(os.Args[1]) {
-                                    fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
-
-                                    bError = false
-                                 }
-                              }
-                           }
-                        }
-                     }
-                  }
-               }
-            }
-
-            if bError {
-               fmt.Println(" " + hmessages.GetErrorMessage(hstrings.STRING_EMPTY))
-            }
-
-            fmt.Println(" " + getLine())
-
-            cleanEnvironment()
-         } else {
-            fmt.Println(getAppBanner())
-            fmt.Println(" " + getLine() + "\r\n")
-            fmt.Println(" " + hmessages.GetErrorMessage(oAppConfig.errorMessage))
-            fmt.Println(" " + getLine())
-         }
-      } else {
-         fmt.Println(getAppBanner())
-         fmt.Println(" " + getLine() + "\r\n")
-
-         if hfiles.FileExists(os.Args[1]) && strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
-            fmt.Println(" " + hmessages.GetErrorMessage("Parameters min-sdk-version and target-sdk-version must be numeric"))
-         } else {
-            if strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
-               fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" not exists"))
-            } else {
-               fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" isn't APK file"))
-            }
-         }
-
-         fmt.Println(" " + getLine())
-      }
-   } else {
-      fmt.Println(getAppBanner())
-      fmt.Println(" " + getLine() + "\r\n")
-      fmt.Println(" " + hmessages.GetMessage("Application to transform a file with APK format to AAB", hcolors.Yellow, "INFO   "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file-apk build-tools-version min-sdk-version target-sdk-version", hcolors.Green, "INPUT  "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file.apk 31.0.0 20 31", hcolors.Green, "EXAMPLE"))
-      fmt.Println(" " + hmessages.GetMessage("file.aab", hcolors.Green, "OUTPUT "))
-      fmt.Println(" " + getLine() + "\r\n")
-      fmt.Println(" Author: " + APP_AUTHOR_NAME + " | Version: " + APP_VERSION)
-   }
+func runCommand(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		outStr := strings.ReplaceAll(string(output), "\r", "")
+		if len(outStr) > 0 {
+			return fmt.Errorf("command execution failed (%v):\n%s", err, outStr)
+		}
+		return fmt.Errorf("command execution failed (%v)", err)
+	}
+	return nil
 }
 
 func setAppConfig(sBuildToolsVersion string, sMinSdkVersion string, sTargetSdkVersion string) {
-   var sExecutableExtension string
+	if runtime.GOOS == OS_PLATFORM_WINDOWS {
+		sSeparatorCharacter = "\\"
+		sExecutableExtension = hfiles.FILE_EXTENSION_EXE
+	} else {
+		sSeparatorCharacter = "/"
+		sExecutableExtension = hstrings.STRING_EMPTY
+	}
 
-   if runtime.GOOS == OS_PLATFORM_WINDOWS {
-      sSeparatorCharacter = "\\"
-      sExecutableExtension = hfiles.FILE_EXTENSION_EXE
-   } else {
-      sSeparatorCharacter = "/"
-      sExecutableExtension = hstrings.STRING_EMPTY
-   }
+	oAppConfig.tempFolderPath = APP_FOLDER_TEMP
 
-   oAppConfig.tempFolderPath = APP_FOLDER_TEMP
+	// 1. Check if JAVA is available
+	oAppConfig.javaBinFilePath = findJavaBinary()
+	if hstrings.IsEmpty(oAppConfig.javaBinFilePath) {
+		oAppConfig.errorMessage = "Java isn't installed or couldn't be found in JAVA_HOME, JAVA_JRE, or PATH"
+		return
+	}
 
-   // 1. Check if JAVA is installed
-   var sOSEnvVarJava string = os.Getenv(OS_ENVIRONMENT_VAR_JAVA_HOME)
+	// 2. Check if apktool is available
+	oAppConfig.apktoolJarFilePath = filepath.Join("tools", "apktool"+hfiles.FILE_EXTENSION_JAR)
+	if !hfiles.FileExists(oAppConfig.apktoolJarFilePath) {
+		oAppConfig.errorMessage = "Apktool isn't available, please download apktool" + hfiles.FILE_EXTENSION_JAR + " and put it inside tools folder"
+		return
+	}
 
-   if hstrings.IsEmpty(sOSEnvVarJava) {
-      sOSEnvVarJava = os.Getenv(OS_ENVIRONMENT_VAR_JAVA_JRE)
-   }
+	// 3. Check if bundletool is available
+	oAppConfig.bundletoolJarFilePath = filepath.Join("tools", "bundletool"+hfiles.FILE_EXTENSION_JAR)
+	if !hfiles.FileExists(oAppConfig.bundletoolJarFilePath) {
+		oAppConfig.errorMessage = "Bundletool isn't available, please download bundletool" + hfiles.FILE_EXTENSION_JAR + " and put it inside tools folder"
+		return
+	}
 
-   if !hstrings.IsEmpty(sOSEnvVarJava) {
-      oAppConfig.javaBinFilePath = sOSEnvVarJava + sSeparatorCharacter + "bin" + sSeparatorCharacter + "java"
+	// 4. Check if AAPT2 is available
+	oAppConfig.aapt2BinFilePath = findAapt2Binary(sBuildToolsVersion)
+	if hstrings.IsEmpty(oAppConfig.aapt2BinFilePath) {
+		oAppConfig.errorMessage = "Aapt2 isn't available, please check that build-tools " + sBuildToolsVersion + " is installed in ANDROID_HOME or aapt2 is in tools or PATH"
+		return
+	}
 
-      // 2. Check if apktool is available
-      if hfiles.FileExists("tools" + sSeparatorCharacter + "apktool" + hfiles.FILE_EXTENSION_JAR) {
-         oAppConfig.apktoolJarFilePath = "tools" + sSeparatorCharacter + "apktool" + hfiles.FILE_EXTENSION_JAR
-
-         // 3. Check if bundletool is available
-         if hfiles.FileExists("tools" + sSeparatorCharacter + "bundletool" + hfiles.FILE_EXTENSION_JAR) {
-            oAppConfig.bundletoolJarFilePath = "tools" + sSeparatorCharacter + "bundletool" + hfiles.FILE_EXTENSION_JAR
-
-            // 4. Check if SDK is installed
-            var sOSEnvVarAndroid string = os.Getenv(OS_ENVIRONMENT_VAR_ANDROID_HOME)
-
-            if hstrings.IsEmpty(sOSEnvVarAndroid) {
-               sOSEnvVarAndroid = os.Getenv(OS_ENVIRONMENT_VAR_ANDROID_SDK_ROOT)
-            }
-
-            if !hstrings.IsEmpty(sOSEnvVarAndroid) {
-               if hfiles.FileExists(sOSEnvVarAndroid + sSeparatorCharacter + "build-tools" + sSeparatorCharacter + sBuildToolsVersion + sSeparatorCharacter + "aapt2" + sExecutableExtension) {
-                  oAppConfig.aapt2BinFilePath = sOSEnvVarAndroid + sSeparatorCharacter + "build-tools" + sSeparatorCharacter + sBuildToolsVersion + sSeparatorCharacter + "aapt2" + sExecutableExtension
-
-                  // 5. Check if Android.jar exists
-                  if hfiles.FileExists(sOSEnvVarAndroid + sSeparatorCharacter + "platforms" + sSeparatorCharacter + "android-" + sTargetSdkVersion + sSeparatorCharacter + "android" + hfiles.FILE_EXTENSION_JAR) {
-                     oAppConfig.androidJarFilePath = sOSEnvVarAndroid + sSeparatorCharacter + "platforms" + sSeparatorCharacter + "android-" + sTargetSdkVersion + sSeparatorCharacter + "android" + hfiles.FILE_EXTENSION_JAR
-                  } else {
-                     oAppConfig.errorMessage = "Android" + hfiles.FILE_EXTENSION_JAR + " isn't available, please check that the jar exists in the {ANDROID_SDK}" + sSeparatorCharacter + "platforms" + sSeparatorCharacter + "android-" + sTargetSdkVersion + sSeparatorCharacter + " folder"
-                  }
-               } else {
-                  oAppConfig.errorMessage = "Aapt2 isn't available, please check that the binary exists in the {ANDROID_SDK}" + sSeparatorCharacter + "build-tools" + sSeparatorCharacter + sBuildToolsVersion + " folder"
-               }
-            } else {
-               oAppConfig.errorMessage = "Android Studio isn't installed the ANDROID_HOME or ANDROID_SDK_ROOT environment variables couldn't be detected"
-            }
-         } else {
-            oAppConfig.errorMessage = "Bundletool isn't available, please download bundletool" + hfiles.FILE_EXTENSION_JAR + " and put it inside tools folder"
-         }
-      } else {
-         oAppConfig.errorMessage = "Apktool isn't available, please download apktool" + hfiles.FILE_EXTENSION_JAR + " and put it inside tools folder"
-      }
-   } else {
-      oAppConfig.errorMessage = "Java isn't installed, the JAVA_JDK or JAVA_JRE environment variables couldn't be detected"
-   }
+	// 5. Check if android.jar is available
+	oAppConfig.androidJarFilePath = findAndroidJar(sTargetSdkVersion)
+	if hstrings.IsEmpty(oAppConfig.androidJarFilePath) {
+		oAppConfig.errorMessage = "Android" + hfiles.FILE_EXTENSION_JAR + " isn't available for target API " + sTargetSdkVersion + ", please check ANDROID_HOME platforms folder"
+		return
+	}
 }
 
-func cleanEnvironment() bool {
-   var oPrepareEnvironment error = os.RemoveAll(APP_FOLDER_TEMP)
+func findJavaBinary() string {
+	sOSEnvVarJava := os.Getenv(OS_ENVIRONMENT_VAR_JAVA_HOME)
+	if hstrings.IsEmpty(sOSEnvVarJava) {
+		sOSEnvVarJava = os.Getenv(OS_ENVIRONMENT_VAR_JAVA_JRE)
+	}
 
-   return oPrepareEnvironment == nil
+	if !hstrings.IsEmpty(sOSEnvVarJava) {
+		javaPath := filepath.Join(sOSEnvVarJava, "bin", "java"+sExecutableExtension)
+		if hfiles.FileExists(javaPath) {
+			return javaPath
+		}
+	}
+
+	if path, err := exec.LookPath("java" + sExecutableExtension); err == nil {
+		return path
+	}
+
+	return hstrings.STRING_EMPTY
 }
 
-func decompressInputAPKPackage(sAPKFile string) bool {
-   var oDecompressInputAPKPackage error = exec.Command(oAppConfig.javaBinFilePath, "-jar", oAppConfig.apktoolJarFilePath, "d", sAPKFile, "-s", "-o", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT).Run()
+func findAapt2Binary(sBuildToolsVersion string) string {
+	// 1. Try local tools folder first
+	localAapt2 := filepath.Join("tools", "aapt2"+sExecutableExtension)
+	if hfiles.FileExists(localAapt2) {
+		return localAapt2
+	}
 
-   return oDecompressInputAPKPackage == nil
+	sOSEnvVarAndroid := os.Getenv(OS_ENVIRONMENT_VAR_ANDROID_HOME)
+	if hstrings.IsEmpty(sOSEnvVarAndroid) {
+		sOSEnvVarAndroid = os.Getenv(OS_ENVIRONMENT_VAR_ANDROID_SDK_ROOT)
+	}
+
+	if !hstrings.IsEmpty(sOSEnvVarAndroid) {
+		// Try requested build-tools version
+		aapt2Path := filepath.Join(sOSEnvVarAndroid, "build-tools", sBuildToolsVersion, "aapt2"+sExecutableExtension)
+		if hfiles.FileExists(aapt2Path) {
+			return aapt2Path
+		}
+
+		// Fallback: search in any other available build-tools version
+		buildToolsDir := filepath.Join(sOSEnvVarAndroid, "build-tools")
+		if entries, err := os.ReadDir(buildToolsDir); err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					candidate := filepath.Join(buildToolsDir, entry.Name(), "aapt2"+sExecutableExtension)
+					if hfiles.FileExists(candidate) {
+						return candidate
+					}
+				}
+			}
+		}
+	}
+
+	if path, err := exec.LookPath("aapt2" + sExecutableExtension); err == nil {
+		return path
+	}
+
+	return hstrings.STRING_EMPTY
 }
 
-func compileInputResources() bool {
-   var oCompileInputResources error = exec.Command(oAppConfig.aapt2BinFilePath, "compile", "--dir", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT+sSeparatorCharacter+"res", "-o", oAppConfig.tempFolderPath+sSeparatorCharacter+"compiled_resources"+hfiles.FILE_EXTENSION_ZIP).Run()
+func findAndroidJar(sTargetSdkVersion string) string {
+	sOSEnvVarAndroid := os.Getenv(OS_ENVIRONMENT_VAR_ANDROID_HOME)
+	if hstrings.IsEmpty(sOSEnvVarAndroid) {
+		sOSEnvVarAndroid = os.Getenv(OS_ENVIRONMENT_VAR_ANDROID_SDK_ROOT)
+	}
 
-   return oCompileInputResources == nil
+	if !hstrings.IsEmpty(sOSEnvVarAndroid) {
+		// Try target SDK platform
+		jarPath := filepath.Join(sOSEnvVarAndroid, "platforms", "android-"+sTargetSdkVersion, "android"+hfiles.FILE_EXTENSION_JAR)
+		if hfiles.FileExists(jarPath) {
+			return jarPath
+		}
+
+		// Fallback: search any available platforms directory
+		platformsDir := filepath.Join(sOSEnvVarAndroid, "platforms")
+		if entries, err := os.ReadDir(platformsDir); err == nil {
+			var fallbackPath string
+			for _, entry := range entries {
+				if entry.IsDir() && strings.HasPrefix(entry.Name(), "android-") {
+					candidate := filepath.Join(platformsDir, entry.Name(), "android"+hfiles.FILE_EXTENSION_JAR)
+					if hfiles.FileExists(candidate) {
+						fallbackPath = candidate
+					}
+				}
+			}
+			if !hstrings.IsEmpty(fallbackPath) {
+				return fallbackPath
+			}
+		}
+	}
+
+	return hstrings.STRING_EMPTY
 }
 
-func generateOutputAPKBase(sMinSdkVersion string, sTargetSdkVersion string) bool {
-   var oGenerateOutputAPKBase error = exec.Command(oAppConfig.aapt2BinFilePath, "link", "--proto-format", "-o", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FILE_TEMP_OUTPUT+hfiles.FILE_EXTENSION_APK, "-I", oAppConfig.androidJarFilePath, "--min-sdk-version", sMinSdkVersion, "--target-sdk-version", sTargetSdkVersion, "--version-code", "1", "--version-name", "1.0", "--manifest", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT+sSeparatorCharacter+"AndroidManifest"+hfiles.FILE_EXTENSION_XML, "-R", oAppConfig.tempFolderPath+sSeparatorCharacter+"compiled_resources"+hfiles.FILE_EXTENSION_ZIP, "--auto-add-overlay").Run()
-
-   return oGenerateOutputAPKBase == nil
+func cleanEnvironment() error {
+	return os.RemoveAll(APP_FOLDER_TEMP)
 }
 
-func unzipOutputAPKBase() bool {
-   var oUnzipOutputAPKBase error = hcompressions.ZipDecompression(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FILE_TEMP_OUTPUT+hfiles.FILE_EXTENSION_APK, oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT)
-
-   return oUnzipOutputAPKBase == nil
+func decompressInputAPKPackage(sAPKFile string) error {
+	inputDir := filepath.Join(oAppConfig.tempFolderPath, APP_FOLDER_TEMP_INPUT)
+	return runCommand(oAppConfig.javaBinFilePath, "-jar", oAppConfig.apktoolJarFilePath, "d", sAPKFile, "-s", "-o", inputDir, "-f")
 }
 
-func createOutputStructure() bool {
-   var oCreateOutputStructure error = nil
-
-   // Move AndroidManifest.xml file
-   if hfiles.FileExists(oAppConfig.tempFolderPath + sSeparatorCharacter + APP_FOLDER_TEMP_OUTPUT + sSeparatorCharacter + "AndroidManifest" + hfiles.FILE_EXTENSION_XML) {
-      oCreateOutputStructure = os.Mkdir(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"manifest", os.ModePerm)
-
-      if oCreateOutputStructure == nil {
-         oCreateOutputStructure = os.Rename(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"AndroidManifest"+hfiles.FILE_EXTENSION_XML, oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"manifest"+sSeparatorCharacter+"AndroidManifest"+hfiles.FILE_EXTENSION_XML)
-      }
-   }
-
-   // Move assets folder
-   if oCreateOutputStructure == nil {
-      if hfiles.FolderExists(oAppConfig.tempFolderPath + sSeparatorCharacter + APP_FOLDER_TEMP_INPUT + sSeparatorCharacter + "assets") {
-         oCreateOutputStructure = os.Rename(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT+sSeparatorCharacter+"assets", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"assets")
-      }
-   }
-
-   // Move lib folder
-   if oCreateOutputStructure == nil {
-      if hfiles.FolderExists(oAppConfig.tempFolderPath + sSeparatorCharacter + APP_FOLDER_TEMP_INPUT + sSeparatorCharacter + "lib") {
-         oCreateOutputStructure = os.Rename(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT+sSeparatorCharacter+"lib", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"lib")
-      }
-   }
-
-   // Create root folder
-   if !hfiles.FolderExists(oAppConfig.tempFolderPath + sSeparatorCharacter + APP_FOLDER_TEMP_OUTPUT + sSeparatorCharacter + "root") {
-      oCreateOutputStructure = os.Mkdir(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"root", os.ModePerm)
-   }
-
-   // Move kotlin folder
-   if oCreateOutputStructure == nil {
-      if hfiles.FolderExists(oAppConfig.tempFolderPath + sSeparatorCharacter + APP_FOLDER_TEMP_INPUT + sSeparatorCharacter + "kotlin") {
-         oCreateOutputStructure = os.Rename(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT+sSeparatorCharacter+"kotlin", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"root"+sSeparatorCharacter+"kotlin")
-      }
-   }
-
-   // Move meta-inf folder
-   if oCreateOutputStructure == nil {
-      if hfiles.FolderExists(oAppConfig.tempFolderPath + sSeparatorCharacter + APP_FOLDER_TEMP_INPUT + sSeparatorCharacter + "original" + sSeparatorCharacter + "meta-inf") {
-         oCreateOutputStructure = os.Rename(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT+sSeparatorCharacter+"original"+sSeparatorCharacter+"meta-inf", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"root"+sSeparatorCharacter+"meta-inf")
-      } else if hfiles.FolderExists(oAppConfig.tempFolderPath + sSeparatorCharacter + APP_FOLDER_TEMP_INPUT + sSeparatorCharacter + "original" + sSeparatorCharacter + "META-INF") {
-         oCreateOutputStructure = os.Rename(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT+sSeparatorCharacter+"original"+sSeparatorCharacter+"META-INF", oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"root"+sSeparatorCharacter+"meta-inf")
-      }
-   }
-
-   // Move all .dex files
-   oFiles, oCreateOutputStructure := ioutil.ReadDir(oAppConfig.tempFolderPath + sSeparatorCharacter + APP_FOLDER_TEMP_INPUT)
-   if oCreateOutputStructure == nil {
-      var bFirstDexFile = true
-      for _, oFiles := range oFiles {
-         if strings.Contains(oFiles.Name(), hfiles.FILE_EXTENSION_DEX) {
-            if bFirstDexFile {
-               oCreateOutputStructure = os.Mkdir(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"dex", os.ModePerm)
-            }
-
-            if oCreateOutputStructure == nil {
-               oCreateOutputStructure = os.Rename(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_INPUT+sSeparatorCharacter+oFiles.Name(), oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter+"dex"+sSeparatorCharacter+oFiles.Name())
-            }
-
-            bFirstDexFile = false
-         }
-      }
-   }
-
-   return oCreateOutputStructure == nil
+func compileInputResources() error {
+	resDir := filepath.Join(oAppConfig.tempFolderPath, APP_FOLDER_TEMP_INPUT, "res")
+	compiledZip := filepath.Join(oAppConfig.tempFolderPath, "compiled_resources"+hfiles.FILE_EXTENSION_ZIP)
+	return runCommand(oAppConfig.aapt2BinFilePath, "compile", "--dir", resDir, "-o", compiledZip)
 }
 
-func zipOutoutStructure() bool {
-   var oZipOutoutStructure error = hcompressions.ZipCompression(oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FOLDER_TEMP_OUTPUT+sSeparatorCharacter, oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FILE_TEMP_OUTPUT+hfiles.FILE_EXTENSION_ZIP, false)
+func generateOutputAPKBase(sMinSdkVersion string, sTargetSdkVersion string) error {
+	outputAPK := filepath.Join(oAppConfig.tempFolderPath, APP_FILE_TEMP_OUTPUT+hfiles.FILE_EXTENSION_APK)
+	manifestPath := filepath.Join(oAppConfig.tempFolderPath, APP_FOLDER_TEMP_INPUT, "AndroidManifest"+hfiles.FILE_EXTENSION_XML)
+	compiledZip := filepath.Join(oAppConfig.tempFolderPath, "compiled_resources"+hfiles.FILE_EXTENSION_ZIP)
 
-   return oZipOutoutStructure == nil
+	return runCommand(oAppConfig.aapt2BinFilePath, "link", "--proto-format",
+		"-o", outputAPK,
+		"-I", oAppConfig.androidJarFilePath,
+		"--min-sdk-version", sMinSdkVersion,
+		"--target-sdk-version", sTargetSdkVersion,
+		"--version-code", "1",
+		"--version-name", "1.0",
+		"--manifest", manifestPath,
+		"-R", compiledZip,
+		"--auto-add-overlay",
+	)
 }
 
-func generateOutputAAB(sAPKFile string) bool {
-   var oGenerateOutputAAB error = nil
+func unzipOutputAPKBase() error {
+	outputAPK := filepath.Join(oAppConfig.tempFolderPath, APP_FILE_TEMP_OUTPUT+hfiles.FILE_EXTENSION_APK)
+	outputDir := filepath.Join(oAppConfig.tempFolderPath, APP_FOLDER_TEMP_OUTPUT)
+	return hcompressions.ZipDecompression(outputAPK, outputDir)
+}
 
-   if hfiles.FileExists(strings.ReplaceAll(sAPKFile, hfiles.FILE_EXTENSION_APK, hfiles.FILE_EXTENSION_AAB)) {
-      oGenerateOutputAAB = os.Remove(strings.ReplaceAll(sAPKFile, hfiles.FILE_EXTENSION_APK, hfiles.FILE_EXTENSION_AAB))
-   }
+func createOutputStructure() error {
+	baseInput := filepath.Join(oAppConfig.tempFolderPath, APP_FOLDER_TEMP_INPUT)
+	baseOutput := filepath.Join(oAppConfig.tempFolderPath, APP_FOLDER_TEMP_OUTPUT)
 
-   if oGenerateOutputAAB == nil {
-      oGenerateOutputAAB = exec.Command(oAppConfig.javaBinFilePath, "-jar", oAppConfig.bundletoolJarFilePath, "build-bundle", "--modules="+oAppConfig.tempFolderPath+sSeparatorCharacter+APP_FILE_TEMP_OUTPUT+hfiles.FILE_EXTENSION_ZIP, "--output="+strings.ReplaceAll(sAPKFile, hfiles.FILE_EXTENSION_APK, hfiles.FILE_EXTENSION_AAB)).Run()
-   }
+	// 1. Move AndroidManifest.xml file
+	manifestSrc := filepath.Join(baseOutput, "AndroidManifest"+hfiles.FILE_EXTENSION_XML)
+	if hfiles.FileExists(manifestSrc) {
+		manifestDir := filepath.Join(baseOutput, "manifest")
+		if err := os.MkdirAll(manifestDir, os.ModePerm); err != nil {
+			return fmt.Errorf("failed to create manifest folder: %w", err)
+		}
+		manifestDst := filepath.Join(manifestDir, "AndroidManifest"+hfiles.FILE_EXTENSION_XML)
+		if err := os.Rename(manifestSrc, manifestDst); err != nil {
+			return fmt.Errorf("failed to move AndroidManifest.xml: %w", err)
+		}
+	}
 
-   return oGenerateOutputAAB == nil
+	// 2. Move assets folder
+	assetsSrc := filepath.Join(baseInput, "assets")
+	if hfiles.FolderExists(assetsSrc) {
+		assetsDst := filepath.Join(baseOutput, "assets")
+		if err := os.Rename(assetsSrc, assetsDst); err != nil {
+			return fmt.Errorf("failed to move assets folder: %w", err)
+		}
+	}
+
+	// 3. Move lib folder
+	libSrc := filepath.Join(baseInput, "lib")
+	if hfiles.FolderExists(libSrc) {
+		libDst := filepath.Join(baseOutput, "lib")
+		if err := os.Rename(libSrc, libDst); err != nil {
+			return fmt.Errorf("failed to move lib folder: %w", err)
+		}
+	}
+
+	// 4. Ensure root folder exists
+	rootDir := filepath.Join(baseOutput, "root")
+	if err := os.MkdirAll(rootDir, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create root folder: %w", err)
+	}
+
+	// 5. Move kotlin folder
+	kotlinSrc := filepath.Join(baseInput, "kotlin")
+	if hfiles.FolderExists(kotlinSrc) {
+		kotlinDst := filepath.Join(rootDir, "kotlin")
+		if err := os.Rename(kotlinSrc, kotlinDst); err != nil {
+			return fmt.Errorf("failed to move kotlin folder: %w", err)
+		}
+	}
+
+	// 6. Move meta-inf folder
+	metaInfSrc := filepath.Join(baseInput, "original", "meta-inf")
+	if !hfiles.FolderExists(metaInfSrc) {
+		metaInfSrc = filepath.Join(baseInput, "original", "META-INF")
+	}
+	if hfiles.FolderExists(metaInfSrc) {
+		metaInfDst := filepath.Join(rootDir, "meta-inf")
+		if err := os.Rename(metaInfSrc, metaInfDst); err != nil {
+			return fmt.Errorf("failed to move meta-inf folder: %w", err)
+		}
+	}
+
+	// 7. Move unknown folder contents to root
+	unknownSrc := filepath.Join(baseInput, "unknown")
+	if hfiles.FolderExists(unknownSrc) {
+		entries, err := os.ReadDir(unknownSrc)
+		if err == nil {
+			for _, entry := range entries {
+				srcPath := filepath.Join(unknownSrc, entry.Name())
+				dstPath := filepath.Join(rootDir, entry.Name())
+				if err := os.Rename(srcPath, dstPath); err != nil {
+					return fmt.Errorf("failed to move unknown item %s: %w", entry.Name(), err)
+				}
+			}
+		}
+	}
+
+	// 8. Move all .dex files
+	dexDir := filepath.Join(baseOutput, "dex")
+	entries, err := os.ReadDir(baseInput)
+	if err == nil {
+		hasDex := false
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), hfiles.FILE_EXTENSION_DEX) {
+				if !hasDex {
+					if err := os.MkdirAll(dexDir, os.ModePerm); err != nil {
+						return fmt.Errorf("failed to create dex folder: %w", err)
+					}
+					hasDex = true
+				}
+				srcPath := filepath.Join(baseInput, entry.Name())
+				dstPath := filepath.Join(dexDir, entry.Name())
+				if err := os.Rename(srcPath, dstPath); err != nil {
+					return fmt.Errorf("failed to move dex file %s: %w", entry.Name(), err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func zipOutoutStructure() error {
+	src := filepath.Join(oAppConfig.tempFolderPath, APP_FOLDER_TEMP_OUTPUT) + string(filepath.Separator)
+	dst := filepath.Join(oAppConfig.tempFolderPath, APP_FILE_TEMP_OUTPUT+hfiles.FILE_EXTENSION_ZIP)
+	return hcompressions.ZipCompression(src, dst, false)
+}
+
+func getAABPath(sAPKFile string) string {
+	ext := filepath.Ext(sAPKFile)
+	return sAPKFile[:len(sAPKFile)-len(ext)] + hfiles.FILE_EXTENSION_AAB
+}
+
+func generateOutputAAB(sAPKFile string) error {
+	aabPath := getAABPath(sAPKFile)
+	if hfiles.FileExists(aabPath) {
+		if err := os.Remove(aabPath); err != nil {
+			return fmt.Errorf("failed to remove existing AAB file: %w", err)
+		}
+	}
+	moduleZip := filepath.Join(oAppConfig.tempFolderPath, APP_FILE_TEMP_OUTPUT+hfiles.FILE_EXTENSION_ZIP)
+	return runCommand(oAppConfig.javaBinFilePath, "-jar", oAppConfig.bundletoolJarFilePath, "build-bundle", "--modules="+moduleZip, "--output="+aabPath)
+}
+
+func validateOutputAAB(sAPKFile string) error {
+	aabPath := getAABPath(sAPKFile)
+	if !hfiles.FileExists(aabPath) {
+		return fmt.Errorf("AAB file does not exist: %s", aabPath)
+	}
+	return runCommand(oAppConfig.javaBinFilePath, "-jar", oAppConfig.bundletoolJarFilePath, "validate", "--bundle="+aabPath)
 }
 
 func getLine() string {
-   return "____________________________________________________________________________"
+	return "____________________________________________________________________________"
 }
 
 func getAppBanner() string {
-   var sAppBanner string
+	var sAppBanner string
 
-   sAppBanner = "  ________  ________  ___  __      _______  ________  ________  ________\r\n"
-   sAppBanner += " |\\   __  \\|\\   __  \\|\\  \\|\\  \\   /  ___  \\|\\   __  \\|\\   __  \\|\\   __  \\\r\n"
-   sAppBanner += " \\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\/  /|_/__/|_/  /\\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\|\\ /_\r\n"
-   sAppBanner += "  \\ \\   __  \\ \\   ____\\ \\   ___  \\__|//  / /\\ \\   __  \\ \\   __  \\ \\   __  \\\r\n"
-   sAppBanner += "   \\ \\  \\ \\  \\ \\  \\___|\\ \\  \\\\ \\  \\  /  /_/__\\ \\  \\ \\  \\ \\  \\ \\  \\ \\  \\|\\  \\\r\n"
-   sAppBanner += "    \\ \\__\\ \\__\\ \\__\\    \\ \\__\\\\ \\__\\|\\________\\ \\__\\ \\__\\ \\__\\ \\__\\ \\_______\\\r\n"
-   sAppBanner += "     \\|__|\\|__|\\|__|    \\|__| \\\\|__| \\|_______|\\|__|\\|__|\\|__|\\|__|\\|_______|"
+	sAppBanner = "  ________  ________  ___  __      _______  ________  ________  ________\r\n"
+	sAppBanner += " |\\   __  \\|\\   __  \\|\\  \\|\\  \\   /  ___  \\|\\   __  \\|\\   __  \\|\\   __  \\\r\n"
+	sAppBanner += " \\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\/  /|_/__/|_/  /\\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\|\\ /_\r\n"
+	sAppBanner += "  \\ \\   __  \\ \\   ____\\ \\   ___  \\__|//  / /\\ \\   __  \\ \\   __  \\ \\   __  \\\r\n"
+	sAppBanner += "   \\ \\  \\ \\  \\ \\  \\___|\\ \\  \\\\ \\  \\  /  /_/__\\ \\  \\ \\  \\ \\  \\ \\  \\ \\  \\|\\  \\\r\n"
+	sAppBanner += "    \\ \\__\\ \\__\\ \\__\\    \\ \\__\\\\ \\__\\|\\________\\ \\__\\ \\__\\ \\__\\ \\__\\ \\_______\r\n"
+	sAppBanner += "     \\|__|\\|__|\\|__|    \\|__| \\|__| \\|_______|\\|__|\\|__|\\|__|\\|__|\\|_______|"
 
-   return sAppBanner
+	return sAppBanner
 }
