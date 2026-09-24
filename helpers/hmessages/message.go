@@ -25,9 +25,9 @@ func GetMessage(sMessage string, sExtraParams ...string) string {
          var sTypeMessage string = ""
 
          if !hstrings.IsEmpty(sExtraParams[0]) {
-            sTypeMessage = "[ " + sExtraParams[0] + sExtraParams[1] + hcolors.Reset + " ]"
+            sTypeMessage = "[" + sExtraParams[0] + " " + sExtraParams[1] + " " + hcolors.Reset + "]"
          } else {
-            sTypeMessage = "[ " + sExtraParams[1] + " ]"
+            sTypeMessage = "[" + sExtraParams[1] + "]"
          }
 
          sFullMessage += sTypeMessage + " "
