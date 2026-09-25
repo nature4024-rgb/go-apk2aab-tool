@@ -24,10 +24,11 @@ func GetMessage(sMessage string, sExtraParams ...string) string {
       if len(sExtraParams) > 1 {
          var sTypeMessage string = ""
 
+         var sIcon string = getStatusIcon(sExtraParams[1])
          if !hstrings.IsEmpty(sExtraParams[0]) {
-            sTypeMessage = "[ " + sExtraParams[0] + sExtraParams[1] + hcolors.Reset + " ]"
+            sTypeMessage = "[" + sIcon + sExtraParams[0] + sExtraParams[1] + hcolors.Reset + "]"
          } else {
-            sTypeMessage = "[ " + sExtraParams[1] + " ]"
+            sTypeMessage = "[" + sIcon + sExtraParams[1] + "]"
          }
 
          sFullMessage += sTypeMessage + " "
@@ -41,4 +42,33 @@ func GetMessage(sMessage string, sExtraParams ...string) string {
    }
 
    return sFullMessage
+}
+
+func getStatusIcon(sType string) string {
+   switch sType {
+   case "SUCCESS":
+      return " ✔ "
+   case "ERROR":
+      return " ✖ "
+   case "INFO", "INFO   ":
+      return " ℹ "
+   default:
+      return " "
+   }
+}
+
+func GetToastNotification(sTitle string, sMessage string, bSuccess bool) string {
+   var sColor string = hcolors.Green
+   var sIcon string = "✔ "
+   if !bSuccess {
+      sColor = hcolors.Red
+      sIcon = "✖ "
+   }
+   var sToast string = "┌────────────────────────────────────────────────────────────┐\r\n"
+   sToast += "│ " + sColor + sIcon + sTitle + hcolors.Reset + " │\r\n"
+   if !hstrings.IsEmpty(sMessage) {
+      sToast += "│ " + sMessage + " │\r\n"
+   }
+   sToast += "└────────────────────────────────────────────────────────────┘"
+   return sToast
 }
