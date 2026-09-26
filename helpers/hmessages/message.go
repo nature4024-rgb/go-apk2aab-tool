@@ -3,18 +3,34 @@ package hmessages
 import (
    "apk2aab/helpers/hcolors"
    "apk2aab/helpers/hstrings"
+   "fmt"
 )
 
 func GetSuccessMessage(sMessage string) string {
+   if hstrings.IsEmpty(sMessage) {
+      return GetMessage("✔ Done", hcolors.Green, "SUCCESS")
+   }
    return GetMessage(sMessage, hcolors.Green, "SUCCESS")
 }
 
 func GetErrorMessage(sMessage string) string {
-   return GetMessage(sMessage, hcolors.Red, "ERROR")
+   if hstrings.IsEmpty(sMessage) {
+      return GetMessage("✖ Failed", hcolors.Red, "ERROR  ")
+   }
+   return GetMessage(sMessage, hcolors.Red, "ERROR  ")
 }
 
 func GetInfoMessage(sMessage string) string {
-   return GetMessage(sMessage, hcolors.Yellow, "INFO")
+   return GetMessage(sMessage, hcolors.Yellow, "INFO   ")
+}
+
+func GetWarningMessage(sMessage string) string {
+   return GetMessage(sMessage, hcolors.Yellow, "WARN   ")
+}
+
+func GetStepMessage(iStep int, iTotalSteps int, sMessage string) string {
+   sStepTag := fmt.Sprintf("STEP %d/%d", iStep, iTotalSteps)
+   return GetMessage(sMessage, hcolors.Cyan, sStepTag)
 }
 
 func GetMessage(sMessage string, sExtraParams ...string) string {
