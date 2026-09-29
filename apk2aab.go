@@ -51,63 +51,50 @@ func main() {
          setAppConfig(os.Args[2], os.Args[3], os.Args[4])
 
          if hstrings.IsEmpty(oAppConfig.errorMessage) {
-            var bError bool = true
+            var bError bool = false
 
             fmt.Println(getAppBanner())
             fmt.Println(" " + getLine() + "\r\n")
 
-            // Prepare the environment
-            fmt.Print(" " + hmessages.GetInfoMessage("Clean the environment..."))
+            // Prepare environment
+            fmt.Print(" " + hmessages.GetRunningMessage("Preparing environment..."))
             if cleanEnvironment() {
-               fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
+               fmt.Println(" " + hmessages.GetSuccessMessage("Done"))
 
-               // 1. Decompress input APK package
-               fmt.Print(" " + hmessages.GetInfoMessage("Decompress input APK package using apktool..."))
-               if decompressInputAPKPackage(os.Args[1]) {
-                  fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
-
-                  // 2. Compile input resources
-                  fmt.Print(" " + hmessages.GetInfoMessage("Compiling input resources using aapt2..."))
-                  if compileInputResources() {
-                     fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
-
-                     // 3. Generate output APK base
-                     fmt.Print(" " + hmessages.GetInfoMessage("Generating output APK base using aapt2..."))
-                     if generateOutputAPKBase(os.Args[3], os.Args[4]) {
-                        fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
-
-                        // 4. Unzip output APK base
-                        fmt.Print(" " + hmessages.GetInfoMessage("Unzipping output APK base..."))
-                        if unzipOutputAPKBase() {
-                           fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
-
-                           // 5. Create output structure
-                           fmt.Print(" " + hmessages.GetInfoMessage("Creating output structure..."))
-                           if createOutputStructure() {
-                              fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
-
-                              // 6. Compress output structure
-                              fmt.Print(" " + hmessages.GetInfoMessage("Zipping output structure..."))
-                              if zipOutoutStructure() {
-                                 fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
-
-                                 // 7. Generate output AAB
-                                 fmt.Print(" " + hmessages.GetInfoMessage("Generating output AAB..."))
-                                 if generateOutputAAB(os.Args[1]) {
-                                    fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
-
-                                    bError = false
-                                 }
-                              }
-                           }
-                        }
-                     }
-                  }
+               steps := []struct {
+                  name string
+                  fn   func() bool
+               }{
+                  {"Decompress input APK package using apktool", func() bool { return decompressInputAPKPackage(os.Args[1]) }},
+                  {"Compiling input resources using aapt2", compileInputResources},
+                  {"Generating output APK base using aapt2", func() bool { return generateOutputAPKBase(os.Args[3], os.Args[4]) }},
+                  {"Unzipping output APK base", unzipOutputAPKBase},
+                  {"Creating output structure", createOutputStructure},
+                  {"Zipping output structure", zipOutoutStructure},
+                  {"Generating output AAB package", func() bool { return generateOutputAAB(os.Args[1]) }},
                }
+
+               for i, step := range steps {
+                  stepMsg := fmt.Sprintf("[%d/%d] %s...", i+1, len(steps), step.name)
+                  fmt.Print(" " + hmessages.GetRunningMessage(stepMsg))
+                  if !step.fn() {
+                     fmt.Println(" " + hmessages.GetErrorMessage("Failed"))
+                     bError = true
+                     break
+                  }
+                  fmt.Println(" " + hmessages.GetSuccessMessage("Done"))
+               }
+            } else {
+               fmt.Println(" " + hmessages.GetErrorMessage("Failed to clean environment"))
+               bError = true
             }
 
             if bError {
-               fmt.Println(" " + hmessages.GetErrorMessage(hstrings.STRING_EMPTY))
+               fmt.Println(" " + hmessages.GetErrorMessage("Conversion failed during execution"))
+            } else {
+               outputAAB := strings.ReplaceAll(os.Args[1], hfiles.FILE_EXTENSION_APK, hfiles.FILE_EXTENSION_AAB)
+               fmt.Println(" " + hmessages.GetMessage("Bundle created successfully: "+outputAAB, hcolors.Green, "📦 OUTPUT"))
+               fmt.Println(" " + hmessages.GetMessage("Remember to sign your AAB file with your keystore before uploading.", hcolors.Yellow, "💡 TIP   "))
             }
 
             fmt.Println(" " + getLine())
@@ -124,12 +111,12 @@ func main() {
          fmt.Println(" " + getLine() + "\r\n")
 
          if hfiles.FileExists(os.Args[1]) && strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
-            fmt.Println(" " + hmessages.GetErrorMessage("Parameters min-sdk-version and target-sdk-version must be numeric"))
+            fmt.Println(" " + hmessages.GetErrorMessage("Validation error: Parameters min-sdk-version and target-sdk-version must be numeric integers"))
          } else {
             if strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
-               fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" not exists"))
+               fmt.Println(" " + hmessages.GetErrorMessage("Validation error: File '"+os.Args[1]+"' does not exist"))
             } else {
-               fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" isn't APK file"))
+               fmt.Println(" " + hmessages.GetErrorMessage("Validation error: File '"+os.Args[1]+"' is not a valid .apk file"))
             }
          }
 
@@ -138,10 +125,10 @@ func main() {
    } else {
       fmt.Println(getAppBanner())
       fmt.Println(" " + getLine() + "\r\n")
-      fmt.Println(" " + hmessages.GetMessage("Application to transform a file with APK format to AAB", hcolors.Yellow, "INFO   "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file-apk build-tools-version min-sdk-version target-sdk-version", hcolors.Green, "INPUT  "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file.apk 31.0.0 20 31", hcolors.Green, "EXAMPLE"))
-      fmt.Println(" " + hmessages.GetMessage("file.aab", hcolors.Green, "OUTPUT "))
+      fmt.Println(" " + hmessages.GetMessage("Application to transform an APK file into an Android App Bundle (AAB)", hcolors.Yellow, "ℹ INFO   "))
+      fmt.Println(" " + hmessages.GetMessage("apk2aab <file.apk> <build-tools-version> <min-sdk-version> <target-sdk-version>", hcolors.Green, "⚙ INPUT  "))
+      fmt.Println(" " + hmessages.GetMessage("apk2aab app.apk 31.0.0 20 31", hcolors.Green, "💡 EXAMPLE"))
+      fmt.Println(" " + hmessages.GetMessage("app.aab", hcolors.Green, "📦 OUTPUT "))
       fmt.Println(" " + getLine() + "\r\n")
       fmt.Println(" Author: " + APP_AUTHOR_NAME + " | Version: " + APP_VERSION)
    }
@@ -343,7 +330,7 @@ func getAppBanner() string {
    sAppBanner += " \\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\/  /|_/__/|_/  /\\ \\  \\|\\  \\ \\  \\|\\  \\ \\  \\|\\ /_\r\n"
    sAppBanner += "  \\ \\   __  \\ \\   ____\\ \\   ___  \\__|//  / /\\ \\   __  \\ \\   __  \\ \\   __  \\\r\n"
    sAppBanner += "   \\ \\  \\ \\  \\ \\  \\___|\\ \\  \\\\ \\  \\  /  /_/__\\ \\  \\ \\  \\ \\  \\ \\  \\ \\  \\|\\  \\\r\n"
-   sAppBanner += "    \\ \\__\\ \\__\\ \\__\\    \\ \\__\\\\ \\__\\|\\________\\ \\__\\ \\__\\ \\__\\ \\__\\ \\_______\\\r\n"
+   sAppBanner += "    \\ \\__\\ \\__\\ \\__\\    \\ \\__\\\\ \\__\\|\\________\\ \\__\\ \\__\\ \\__\\ \\__\\ \\_______\r\n"
    sAppBanner += "     \\|__|\\|__|\\|__|    \\|__| \\\\|__| \\|_______|\\|__|\\|__|\\|__|\\|__|\\|_______|"
 
    return sAppBanner
