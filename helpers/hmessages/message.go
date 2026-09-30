@@ -6,15 +6,27 @@ import (
 )
 
 func GetSuccessMessage(sMessage string) string {
-   return GetMessage(sMessage, hcolors.Green, "SUCCESS")
+   return GetMessage(sMessage, hcolors.Green, "✔ SUCCESS")
 }
 
 func GetErrorMessage(sMessage string) string {
-   return GetMessage(sMessage, hcolors.Red, "ERROR")
+   return GetMessage(sMessage, hcolors.Red, "✖ ERROR")
 }
 
 func GetInfoMessage(sMessage string) string {
-   return GetMessage(sMessage, hcolors.Yellow, "INFO")
+   return GetMessage(sMessage, hcolors.Yellow, "ℹ INFO")
+}
+
+func GetLoadingMessage(sMessage string) string {
+   return GetMessage(sMessage, hcolors.Cyan, "⏳ RUNNING")
+}
+
+func GetToastSuccess(sTitle string, sDetails string) string {
+   return GetMessage("✔ "+sTitle+" | "+sDetails, hcolors.Green, "TOAST")
+}
+
+func GetToastError(sTitle string, sDetails string) string {
+   return GetMessage("✖ "+sTitle+" | "+sDetails, hcolors.Red, "ALERT")
 }
 
 func GetMessage(sMessage string, sExtraParams ...string) string {
