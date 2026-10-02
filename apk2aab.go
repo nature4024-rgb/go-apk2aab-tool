@@ -138,10 +138,10 @@ func main() {
    } else {
       fmt.Println(getAppBanner())
       fmt.Println(" " + getLine() + "\r\n")
-      fmt.Println(" " + hmessages.GetMessage("Application to transform a file with APK format to AAB", hcolors.Yellow, "INFO   "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file-apk build-tools-version min-sdk-version target-sdk-version", hcolors.Green, "INPUT  "))
+      fmt.Println(" " + hmessages.GetMessage("Application to transform a file with APK format to AAB", hcolors.Yellow, "INFO"))
+      fmt.Println(" " + hmessages.GetMessage("apk2aab file-apk build-tools-version min-sdk-version target-sdk-version", hcolors.Green, "INPUT"))
       fmt.Println(" " + hmessages.GetMessage("apk2aab file.apk 31.0.0 20 31", hcolors.Green, "EXAMPLE"))
-      fmt.Println(" " + hmessages.GetMessage("file.aab", hcolors.Green, "OUTPUT "))
+      fmt.Println(" " + hmessages.GetMessage("file.aab", hcolors.Green, "OUTPUT"))
       fmt.Println(" " + getLine() + "\r\n")
       fmt.Println(" Author: " + APP_AUTHOR_NAME + " | Version: " + APP_VERSION)
    }
