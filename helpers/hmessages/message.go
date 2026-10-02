@@ -3,6 +3,7 @@ package hmessages
 import (
    "apk2aab/helpers/hcolors"
    "apk2aab/helpers/hstrings"
+   "strings"
 )
 
 func GetSuccessMessage(sMessage string) string {
@@ -23,11 +24,15 @@ func GetMessage(sMessage string, sExtraParams ...string) string {
    if len(sExtraParams) > 0 {
       if len(sExtraParams) > 1 {
          var sTypeMessage string = ""
+         sBadge := sExtraParams[1]
+         if len(sBadge) < 7 {
+            sBadge = sBadge + strings.Repeat(" ", 7-len(sBadge))
+         }
 
          if !hstrings.IsEmpty(sExtraParams[0]) {
-            sTypeMessage = "[ " + sExtraParams[0] + sExtraParams[1] + hcolors.Reset + " ]"
+            sTypeMessage = "[ " + sExtraParams[0] + sBadge + hcolors.Reset + " ]"
          } else {
-            sTypeMessage = "[ " + sExtraParams[1] + " ]"
+            sTypeMessage = "[ " + sBadge + " ]"
          }
 
          sFullMessage += sTypeMessage + " "
