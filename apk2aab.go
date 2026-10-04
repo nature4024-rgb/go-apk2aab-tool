@@ -47,8 +47,18 @@ var sSeparatorCharacter string
 
 func main() {
    if len(os.Args) == 5 {
-      if hfiles.FileExists(os.Args[1]) && strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK && regexp.MustCompile(REGEX_NUMERIC).MatchString(os.Args[3]) && regexp.MustCompile(REGEX_NUMERIC).MatchString(os.Args[4]) {
-         setAppConfig(os.Args[2], os.Args[3], os.Args[4])
+      sAPKFile := os.Args[1]
+      sBuildTools := os.Args[2]
+      sMinSDK := os.Args[3]
+      sTargetSDK := os.Args[4]
+
+      isAPKExt := strings.ToLower(filepath.Ext(sAPKFile)) == hfiles.FILE_EXTENSION_APK
+      isNumericMin := regexp.MustCompile(REGEX_NUMERIC).MatchString(sMinSDK)
+      isNumericTarget := regexp.MustCompile(REGEX_NUMERIC).MatchString(sTargetSDK)
+      fileExists := hfiles.FileExists(sAPKFile)
+
+      if fileExists && isAPKExt && isNumericMin && isNumericTarget {
+         setAppConfig(sBuildTools, sMinSDK, sTargetSDK)
 
          if hstrings.IsEmpty(oAppConfig.errorMessage) {
             var bError bool = true
@@ -63,7 +73,7 @@ func main() {
 
                // 1. Decompress input APK package
                fmt.Print(" " + hmessages.GetInfoMessage("Decompress input APK package using apktool..."))
-               if decompressInputAPKPackage(os.Args[1]) {
+               if decompressInputAPKPackage(sAPKFile) {
                   fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                   // 2. Compile input resources
@@ -73,7 +83,7 @@ func main() {
 
                      // 3. Generate output APK base
                      fmt.Print(" " + hmessages.GetInfoMessage("Generating output APK base using aapt2..."))
-                     if generateOutputAPKBase(os.Args[3], os.Args[4]) {
+                     if generateOutputAPKBase(sMinSDK, sTargetSDK) {
                         fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                         // 4. Unzip output APK base
@@ -93,7 +103,7 @@ func main() {
 
                                  // 7. Generate output AAB
                                  fmt.Print(" " + hmessages.GetInfoMessage("Generating output AAB..."))
-                                 if generateOutputAAB(os.Args[1]) {
+                                 if generateOutputAAB(sAPKFile) {
                                     fmt.Println(" " + hmessages.GetSuccessMessage(hstrings.STRING_EMPTY))
 
                                     bError = false
@@ -123,14 +133,12 @@ func main() {
          fmt.Println(getAppBanner())
          fmt.Println(" " + getLine() + "\r\n")
 
-         if hfiles.FileExists(os.Args[1]) && strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
-            fmt.Println(" " + hmessages.GetErrorMessage("Parameters min-sdk-version and target-sdk-version must be numeric"))
-         } else {
-            if strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
-               fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" not exists"))
-            } else {
-               fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" isn't APK file"))
-            }
+         if !isAPKExt {
+            fmt.Println(" " + hmessages.GetErrorMessage("Invalid input file extension for '"+sAPKFile+"': expected .apk file"))
+         } else if !fileExists {
+            fmt.Println(" " + hmessages.GetErrorMessage("File not found: '"+sAPKFile+"' does not exist"))
+         } else if !isNumericMin || !isNumericTarget {
+            fmt.Println(" " + hmessages.GetErrorMessage("Validation error: min-sdk-version ('"+sMinSDK+"') and target-sdk-version ('"+sTargetSDK+"') must be positive integers"))
          }
 
          fmt.Println(" " + getLine())
@@ -138,11 +146,17 @@ func main() {
    } else {
       fmt.Println(getAppBanner())
       fmt.Println(" " + getLine() + "\r\n")
-      fmt.Println(" " + hmessages.GetMessage("Application to transform a file with APK format to AAB", hcolors.Yellow, "INFO   "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file-apk build-tools-version min-sdk-version target-sdk-version", hcolors.Green, "INPUT  "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file.apk 31.0.0 20 31", hcolors.Green, "EXAMPLE"))
-      fmt.Println(" " + hmessages.GetMessage("file.aab", hcolors.Green, "OUTPUT "))
+      fmt.Println(" " + hmessages.GetMessage("CLI tool to convert Android APK packages into Android App Bundles (AAB)", hcolors.Yellow, "INFO     "))
+      fmt.Println(" " + hmessages.GetMessage("apk2aab <file-apk> <build-tools-version> <min-sdk-version> <target-sdk-version>", hcolors.Green, "USAGE    "))
+      fmt.Println(" " + hmessages.GetMessage("apk2aab app.apk 31.0.0 20 31", hcolors.Green, "EXAMPLE  "))
+      fmt.Println(" " + hmessages.GetMessage("app.aab", hcolors.Green, "OUTPUT   "))
       fmt.Println(" " + getLine() + "\r\n")
+      fmt.Println(" ARGUMENTS:")
+      fmt.Println("   file-apk             Path to the source Android APK package (.apk)")
+      fmt.Println("   build-tools-version  Installed Android SDK Build-Tools version (e.g. 31.0.0)")
+      fmt.Println("   min-sdk-version      Minimum Android SDK version integer (e.g. 20)")
+      fmt.Println("   target-sdk-version   Target Android SDK version integer (e.g. 31)")
+      fmt.Println("\r\n " + getLine() + "\r\n")
       fmt.Println(" Author: " + APP_AUTHOR_NAME + " | Version: " + APP_VERSION)
    }
 }
