@@ -107,7 +107,10 @@ func main() {
             }
 
             if bError {
-               fmt.Println(" " + hmessages.GetErrorMessage(hstrings.STRING_EMPTY))
+               fmt.Println(" " + hmessages.GetErrorMessage("Transformation failed during step execution"))
+            } else {
+               sOutputFile := strings.ReplaceAll(os.Args[1], hfiles.FILE_EXTENSION_APK, hfiles.FILE_EXTENSION_AAB)
+               fmt.Println(" " + hmessages.GetSuccessMessage("Transformation complete! Generated AAB file: "+sOutputFile))
             }
 
             fmt.Println(" " + getLine())
@@ -124,12 +127,12 @@ func main() {
          fmt.Println(" " + getLine() + "\r\n")
 
          if hfiles.FileExists(os.Args[1]) && strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
-            fmt.Println(" " + hmessages.GetErrorMessage("Parameters min-sdk-version and target-sdk-version must be numeric"))
+            fmt.Println(" " + hmessages.GetErrorMessage("Validation error: Parameters min-sdk-version and target-sdk-version must be numeric integers"))
          } else {
             if strings.ToLower(filepath.Ext(os.Args[1])) == hfiles.FILE_EXTENSION_APK {
-               fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" not exists"))
+               fmt.Println(" " + hmessages.GetErrorMessage("Path error: File '"+os.Args[1]+"' does not exist"))
             } else {
-               fmt.Println(" " + hmessages.GetErrorMessage("File "+os.Args[1]+" isn't APK file"))
+               fmt.Println(" " + hmessages.GetErrorMessage("Format error: File '"+os.Args[1]+"' is not a valid .apk file"))
             }
          }
 
@@ -138,10 +141,10 @@ func main() {
    } else {
       fmt.Println(getAppBanner())
       fmt.Println(" " + getLine() + "\r\n")
-      fmt.Println(" " + hmessages.GetMessage("Application to transform a file with APK format to AAB", hcolors.Yellow, "INFO   "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file-apk build-tools-version min-sdk-version target-sdk-version", hcolors.Green, "INPUT  "))
-      fmt.Println(" " + hmessages.GetMessage("apk2aab file.apk 31.0.0 20 31", hcolors.Green, "EXAMPLE"))
-      fmt.Println(" " + hmessages.GetMessage("file.aab", hcolors.Green, "OUTPUT "))
+      fmt.Println(" " + hmessages.GetMessage("Application to transform a file with APK format to AAB", hcolors.Yellow, "ℹ INFO   "))
+      fmt.Println(" " + hmessages.GetMessage("apk2aab <file-apk> <build-tools-version> <min-sdk-version> <target-sdk-version>", hcolors.Green, "📥 INPUT  "))
+      fmt.Println(" " + hmessages.GetMessage("apk2aab app.apk 31.0.0 20 31", hcolors.Green, "💡 EXAMPLE"))
+      fmt.Println(" " + hmessages.GetMessage("app.aab (Generated Android App Bundle)", hcolors.Green, "📦 OUTPUT "))
       fmt.Println(" " + getLine() + "\r\n")
       fmt.Println(" Author: " + APP_AUTHOR_NAME + " | Version: " + APP_VERSION)
    }
